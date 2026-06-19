@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>Giraffa Runner</title>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;touch-action:none;image-rendering:pixelated}
+body{background:#87CEEB;overflow:hidden;font-family:Courier New}
+#game{position:relative;width:100vw;height:100vh}
+canvas{width:100%;height:100%;display:block;background:#87CEEB}
+
+#ui{
+position:absolute;top:10px;left:10px;
+color:white;font-size:20px;font-weight:bold;
+text-shadow:2px 2px black;
+}
+
+#controls{
+position:absolute;bottom:20px;width:100%;
+display:flex;justify-content:space-between;padding:0 20px;
+}
+
+.btn{
+width:85px;height:85px;font-size:30px;
+background:#222;color:white;border-radius:15px;
+}
+
+#start{
+position:absolute;top:50%;left:50%;
+transform:translate(-50%,-50%);
+background:#111;color:white;padding:25px;
+text-align:center;border:3px solid white;
+}
+
+.hidden{display:none}
+</style>
+</head>
+
+<body>
+<div id="game">
+<canvas id="c"></canvas>
+
+<div id="ui">
+LV <span id="lv">1</span> | TIME <span id="t">180</span>
+</div>
+
+<div id="controls">
+<div>
+<button class="btn" id="down">↓</button>
+<button class="btn" id="jump">↑</button>
+</div>
+<div>
+<button class="btn" id="left">←</button>
+<button class="btn" id="right">→</button>
+</div>
+</div>
+
+<div id="start">
+<h1>GIRAFFA RUNNER</h1>
+<button onclick="startGame()">START</button>
+</div>
+</div>
+
+<script>
+const c=document.getElementById("c");
+const ctx=c.getContext("2d");
+c.width=800;c.height=400;
+
+let g={
+x:200,y:280,w:48,h:60,
+vx:0,vy:0,on:false,crouch:false
+};
+
+let world={
+scroll:0,level:1,time:180,
+started:false,gameOver:false,win:false,
+platforms:[],obstacles:[],flag:null
+};
+
+let keys={left:false,right:false,jump:false,down:false};
+
+let clouds=[{x:100,y:60},{x:400,y:40},{x:700,y:80}];
+
+function pixel(x,y,w,h,c){
+ctx.fillStyle=c;
+ctx.fillRect(x,y,w,h);
+}function generateLevel(){
+
+world.platforms=[];
+world.obstacles=[];
+
+let pos=0;
+
+world.platforms.push({x:0,y:340,w:300,h:60});
+pos=300;
+
+for(let i=0;i<180;i++){
+
+if(Math.random()<0.08) pos+=80;
+
+world.platforms.push({x:pos,y:340,w:50,h:60});
+
+let r=Math.random();
+
+if(r<0.35){
+world.obstacles.push({x:pos+10,y:300,w:40,h:40,type:"rock"});
+}
+
+else if(r<0.7){
+world.obstacles.push({x:pos+5,y:250,w:90,h:18,type:"branch"});
+}
+
+pos+=50;
+}
+
+world.flag={x:pos+120,y:260,w:20,h:80,raised:0};
+}
+
+function drawGiraffa(){
+
+let sx=g.x-world.scroll;
+
+if(g.crouch){
+
+pixel(sx,g.y+30,48,28,"#FFD700");
+pixel(sx+18,g.y+10,12,25,"#FFD700");
+pixel(sx+30,g.y,20,10,"#FFD700");
+
+}else{
+
+pixel(sx,g.y,48,60,"#FFD700");
+pixel(sx+20,g.y-60,10,60,"#FFD700");
+pixel(sx+15,g.y-75,25,18,"#FFD700");
+
+pixel(sx+4,g.y+60,10,20,"#FFD700");
+pixel(sx+18,g.y+60,10,20,"#FFD700");
+pixel(sx+32,g.y+60,10,20,"#FFD700");
+}
+}
+
+function drawObstacle(o,x){
+
+if(o.type=="rock"){
+pixel(x,o.y,40,30,"gray");
+}
+
+if(o.type=="branch"){
+pixel(x,o.y,90,18,"#6B3E2E");
+}
+}function update(){
+
+if(!world.started || world.gameOver || world.win) return;
+
+world.time-=1/60;
+if(world.time<=0){world.gameOver=true;}
+
+document.getElementById("t").innerText=Math.floor(world.time);
+
+g.vx=0;
+
+if(keys.right) g.vx=4;
+if(keys.left) g.vx=-2;
+
+if(keys.jump && g.on){
+g.vy=-13;
+g.on=false;
+}
+
+g.crouch=keys.down && g.on;
+
+g.vy+=0.6;
+g.x+=g.vx;
+g.y+=g.vy;
+
+let gh=g.crouch?30:60;
+
+g.on=false;
+
+for(let p of world.platforms){
+
+if(
+g.x+g.w>p.x &&
+g.x<p.x+p.w &&
+g.y+gh>=p.y
+){
+
+g.y=p.y-gh;
+g.vy=0;
+g.on=true;
+}
+
+}
+
+world.scroll=Math.max(0,g.x-250);
+
+for(let o of world.obstacles){
+
+let hit=
+g.x+g.w>o.x &&
+g.x<o.x+o.w &&
+g.y+gh>o.y &&
+g.y<o.y+o.h;
+
+if(hit){
+
+if(o.type=="branch" && !g.crouch){
+world.gameOver=true;
+}
+
+if(o.type=="rock"){
+world.gameOver=true;
+}
+
+}
+}
+
+let fx=world.flag.x-world.scroll;
+
+if(g.x>fx){
+world.flag.raised+=3;
+
+if(world.flag.raised>70){
+world.win=true;
+setTimeout(nextLevel,1500);
+}
+}
+
+clouds.forEach(c=>{
+c.x-=0.3;
+if(c.x<-100) c.x=900;
+});
+
+}function draw(){
+
+ctx.clearRect(0,0,800,400);
+
+ctx.fillStyle="#87CEEB";
+ctx.fillRect(0,0,800,400);
+
+clouds.forEach(c=>{
+pixel(c.x,c.y,70,20,"white");
+});
+
+pixel(0,340,800,60,"#8B4513");
+
+world.platforms.forEach(p=>{
+let px=p.x-world.scroll;
+pixel(px,p.y,p.w,4,"green");
+pixel(px,p.y+4,p.w,p.h,"#8B4513");
+});
+
+world.obstacles.forEach(o=>{
+let ox=o.x-world.scroll;
+if(ox>-100&&ox<900) drawObstacle(o,ox);
+});
+
+let fx=world.flag.x-world.scroll;
+pixel(fx,world.flag.y,20,80,"red");
+
+drawGiraffa();
+}
+
+function loop(){
+update();
+draw();
+requestAnimationFrame(loop);
+}
+
+function startGame(){
+world.started=true;
+generateLevel();
+loop();
+}
+
+function nextLevel(){
+world.level++;
+world.time=180;
+world.scroll=0;
+world.win=false;
+world.started=false;
+document.getElementById("start").classList.remove("hidden");
+}
+
+["left","right","jump","down"].forEach(id=>{
+document.getElementById(id).addEventListener("touchstart",()=>keys[id]=true);
+document.getElementById(id).addEventListener("touchend",()=>keys[id]=false);
+document.getElementById(id).addEventListener("mousedown",()=>keys[id]=true);
+document.getElementById(id).addEventListener("mouseup",()=>keys[id]=false);
+});
+</script>
+</body>
+</html>
